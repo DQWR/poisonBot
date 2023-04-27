@@ -8,7 +8,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ParseMode
 from aiogram.utils import executor
-
+import os
 
 # инициализируем бота и хранилище состояний
 bot = Bot("6178523486:AAHYatLOHjaLa2UMjyZ2gXGF_lwsHP-VKLQ", parse_mode=ParseMode.HTML)
@@ -31,8 +31,10 @@ def init_db():
 def save_order(price, article, photo_id):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?)',
+
+    cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?, ?)',
                    (price, article, photo_id))
+
     conn.commit()
     conn.close()
 
@@ -64,7 +66,7 @@ async def process_order_command(message: types.Message):
 
 # создаем обработчик кнопки "Отмена"
 @dp.message_handler(Text(equals='Отмена', ignore_case=True), state='*')
-async def process_cancel_command(message: types.Message, state: FSMContext):
+async def process_cancel_command(message: types.Message, state: StatesGroup):  # state: FSMContext
     current_state = await state.get_state()
     if current_state is None:
         return
@@ -84,7 +86,7 @@ async def process_order_step1_invalid(message: types.Message):
 
 
 @dp.message_handler(lambda message: message.text.isdigit(), state=OrderForm.price)
-async def process_order_step1(message: types.Message, state: FSMContext):
+async def process_order_step1(message: types.Message, state: StatesGroup):  # state: FSMContext
     async with state.proxy() as data:
         data['price'] = message.text
 
@@ -98,7 +100,7 @@ async def process_order_step1(message: types.Message, state: FSMContext):
 
 # создаем обработчик состояния "артикул"
 @dp.message_handler(state=OrderForm.article)
-async def process_order_step2(message: types.Message, state: FSMContext):
+async def process_order_step2(message: types.Message, state: StatesGroup):  # state: FSMContext
     async with state.proxy() as data:
         data['article'] = message.text
 
@@ -116,23 +118,25 @@ async def process_order_step2(message: types.Message, state: FSMContext):
 
 # создаем обработчик кнопки "Оплатить"
 @dp.message_handler(Text(equals='Оплатить', ignore_case=True), state=OrderForm.payment)
-async def process_order_step3(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        price = data['price']
-        article = data['article']
+async def process_order_step3(message: types.Message, state: StatesGroup):  # state: FSMContext
+    # async with state.proxy() as data:
+    #     price = data['price']
+    #     article = data['article']
 
-    await bot.send_message(message.chat.id, 'Сделайте оплату на номер карты: 1234 5678 9012 3456')
+    await bot.send_message(message.chat.id,
+                           'Сделайте оплату на номер карты: 1234 5678 9012 3456, а затем отправьте мне скриншот, подтверждающий оплату')
 
     # сохраняем заказ в базе данных
-    save_order(price, article, '')
+    # save_order(price, article, '')
 
     # завершаем процесс заказа
-    await state.finish()
+    # await state.finish()
+    await OrderForm.payment.set()
 
 
 # создаем обработчик фото
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=OrderForm.payment)
-async def process_order_step4(message: types.Message, state: FSMContext):
+async def process_order_step4(message: types.Message, state: StatesGroup): # state: FSMContext
     # сохраняем фото в файл
     photo_id = message.photo[-1].file_id
     file_path = await bot.get_file(photo_id)
