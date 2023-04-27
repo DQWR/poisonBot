@@ -22,9 +22,10 @@ dp = Dispatcher(bot, storage=storage)
 DATABASE = 'orders.db'
 
 # Определяем кнопки
-price_btn = KeyboardButton('Узнать стоимость')
-contact_btn = KeyboardButton('Связаться с менеджером')
-order_btn = KeyboardButton('Сделать заказ')
+price_btn = KeyboardButton('Узнать стоимость в рублях💰')
+contact_btn = KeyboardButton('Связаться с менеджером📞')
+order_btn = KeyboardButton('Сделать заказ📦')
+
 # menu_btn = KeyboardButton('Вернуться в меню')
 
 # Создаем объект ReplyKeyboardMarkup и добавляем кнопки
@@ -45,17 +46,17 @@ markup = ReplyKeyboardMarkup(
 def init_db():
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, '
-                   'price INTEGER, article TEXT, photo_id TEXT)')
+    cursor.execute(
+        'CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, username VARCHAR, user_id INTEGER, price DECIMAL, article TEXT)')
     conn.commit()
     conn.close()
 
 
-def save_order(price, article, photo_id):
+def save_order(username, user_id, price, article):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?)',
-                   (price, article, photo_id))
+    cursor.execute('INSERT INTO orders (username, user_id, price, article) VALUES (?, ?, ?, ?)',
+                   (username, user_id, price, article))
     conn.commit()
     conn.close()
 
@@ -70,8 +71,8 @@ class OrderForm(StatesGroup):
 # создаем обработчик команды /start
 @dp.message_handler(commands=['start'])
 async def process_start_command(message: types.Message):
-    await message.answer('Привет! Это тестовый бот для заказа товаров. '
-                         'Нажмите кнопку "Сделать заказ", чтобы начать оформление заказа.', reply_markup=markup)
+    await message.answer('Приветствую! Это тестовый бот для заказа товаров. '
+                         'Нажмите кнопку <b>"Сделать заказ"</b>, чтобы начать оформление заказа.', reply_markup=markup, parse_mode='HTML')
 
 
 # # Создаем обработчик для кнопки "Вернуться в меню"
@@ -96,20 +97,20 @@ async def process_start_command(message: types.Message):
 
 
 # Создаем обработчик для кнопки "Связаться с менеджером"
-@dp.message_handler(Text(equals='Связаться с менеджером'))
+@dp.message_handler(Text(equals='Связаться с менеджером📞'))
 async def ask_price(message: types.Message):
     await message.answer(
-        f"Если у вас возникли какие-нибудь вопросы, то можете задать их нашему менеджеру {manager_link}.",
-        parse_mode=ParseMode.HTML
+        f"Если у вас возникли какие-нибудь вопросы, то можете задать их нашему менеджеру <b>{manager_link}</b>",
+        parse_mode='HTML'
     )
 
 
 # создаем обработчик кнопки заказа
-@dp.message_handler(Text(equals='Сделать заказ'))
+@dp.message_handler(Text(equals='Сделать заказ📦'))
 async def process_order_command(message: types.Message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
     markup.add(types.KeyboardButton('Отмена'))
-    await message.answer('Введите цену товара:', reply_markup=markup)
+    await message.answer('Введите цену товара <b>в юанях:</b>', reply_markup=markup, parse_mode='HTML')
 
     # устанавливаем состояние "цена"
     await OrderForm.price.set()
@@ -126,8 +127,9 @@ async def process_cancel_command(message: types.Message, state: StatesGroup):  #
     await state.finish()
 
     # удалить клавиатуру
-    markup = types.ReplyKeyboardRemove()
-    await message.answer('Отменено.', reply_markup=markup)
+    # markup = types.ReplyKeyboardRemove()
+    await message.answer('Отменено. Нажмите кнопку <b>"Сделать заказ"</b>, чтобы начать оформление заказа.',
+                         reply_markup=markup, parse_mode='HTML')
 
 
 # создаем обработчик состояния "цена"
@@ -139,7 +141,7 @@ async def process_order_step1_invalid(message: types.Message):
 @dp.message_handler(lambda message: message.text.isdigit(), state=OrderForm.price)
 async def process_order_step1(message: types.Message, state: StatesGroup):
     async with state.proxy() as data:
-        data['price'] = message.text
+        data['price'] = round(int(message.text) * 12.7, 2)
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
     markup.add(types.KeyboardButton('Отмена'))
@@ -158,10 +160,10 @@ async def process_order_step2(message: types.Message, state: StatesGroup):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
     markup.add(types.KeyboardButton('Оплатить'))
     markup.add(types.KeyboardButton('Отмена'))
-    await message.answer('Вы заказываете товар за {price} рублей, с артикулом {article}. '
+    await message.answer('Вы заказываете товар за <b>{price} рублей</b>, с артикулом <b>{article}</b>. '
                          'Нажмите кнопку "Оплатить", чтобы перейти к оплате.'
-                         .format(price=data['price'], article=data['article']),
-                         reply_markup=markup)
+                         .format(price=round(data['price'], 2), article=data['article']),
+                         reply_markup=markup, parse_mode='HTML')
 
     # устанавливаем состояние "оплата"
     await OrderForm.payment.set()
@@ -175,7 +177,7 @@ async def process_order_step3(message: types.Message, state: StatesGroup):  # st
     #     article = data['article']
 
     await bot.send_message(message.chat.id,
-                           'Сделайте оплату на номер карты: 1234 5678 9012 3456, а затем отправьте мне скриншот, подтверждающий оплату')
+                           'Произведите оплату переводом на номер карты: <b>1234 5678 9012 3456</b>, а затем отправьте мне скриншот, подтверждающий оплату')
 
     # сохраняем заказ в базе данных
     # save_order(price, article, '')
@@ -189,24 +191,29 @@ async def process_order_step3(message: types.Message, state: StatesGroup):  # st
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=OrderForm.payment)
 async def process_order_step4(message: types.Message, state: StatesGroup):  # state: FSMContext
     # сохраняем фото в файл
-    photo_id = message.photo[-1].file_id
-    file_path = await bot.get_file(photo_id)
-    file = await bot.download_file(file_path.file_path)
+    # photo_id = message.photo[-1].file_id
+    # file_path = await bot.get_file(photo_id)
+    # file = await bot.download_file(file_path.file_path)
 
     # сохраняем заказ в базе данных
     async with state.proxy() as data:
         price = data['price']
         article = data['article']
-    save_order(price, article, photo_id)
+    save_order(message.from_user.username, message.from_user.id, price, article)
 
     # завершаем процесс заказа
     await state.finish()
 
-    await message.answer('Спасибо за оплату. Ваш заказ принят и будет обработан в ближайшее время.', reply_markup=markup)
+    ##### ЛЕНЯ ВОТ ТУТ АЙДИШНИК ТИПА КОТОРОМУ НУЖНО ПЕРЕСЛАТЬ
+    await bot.forward_message(chat_id=497731774, from_chat_id=message.chat.id, message_id=message.message_id)
+    await bot.send_message(chat_id=497731774, text=f'никнейм - {message.from_user.username}\nайди - {message.from_user.id}\nцена в руб - {price}\nартикул - {article}')
+
+    await message.answer('Спасибо за оплату. Ваш заказ принят и будет обработан в ближайшее время.\nОжидайте, скоро с вами свяжется наш менеджер',
+                         reply_markup=markup)
 
 
 # Создаем обработчик для кнопки "Узнать стоимость"
-@dp.message_handler(Text(equals='Узнать стоимость'))
+@dp.message_handler(Text(equals='Узнать стоимость в рублях💰'))
 async def ask_price(message: types.Message):
     # Сохраняем состояние в FSM
     # await OrderForm.price.set()
@@ -226,7 +233,7 @@ async def process_order_step(message: types.Message):
     price *= 12.7
 
     # Отправляем ответ и сбрасываем состояние FSM
-    await message.answer(f"Стоимость товара: {price}")
+    await message.answer(f"Стоимость товара: <b>{round(price, 2)}</b>руб", parse_mode='HTML')
 
 
 if __name__ == '__main__':
