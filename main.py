@@ -207,6 +207,7 @@ async def process_order_step4(message: types.Message, state: StatesGroup):  # st
     ##### ЛЕНЯ ВОТ ТУТ АЙДИШНИК ТИПА КОТОРОМУ НУЖНО ПЕРЕСЛАТЬ
     await bot.forward_message(chat_id=497731774, from_chat_id=message.chat.id, message_id=message.message_id)
     await bot.send_message(chat_id=497731774, text=f'никнейм - {message.from_user.username}\nайди - {message.from_user.id}\nцена в руб - {price}\nартикул - {article}')
+    await bot.send_message(chat_id=497731774, text='----------------------')
 
     await message.answer('Спасибо за оплату. Ваш заказ принят и будет обработан в ближайшее время.\nОжидайте, скоро с вами свяжется наш менеджер',
                          reply_markup=markup)
