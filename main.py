@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.filters.state import State, StatesGroup
@@ -8,7 +8,10 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.types import ParseMode
 from aiogram.utils import executor
-import os
+
+# Создаем ссылку на менеджера
+manager_username = "@123"
+manager_link = f'<a href="tg://user?id={manager_username}">{manager_username}</a>'
 
 # инициализируем бота и хранилище состояний
 bot = Bot("6178523486:AAHYatLOHjaLa2UMjyZ2gXGF_lwsHP-VKLQ", parse_mode=ParseMode.HTML)
@@ -17,6 +20,26 @@ dp = Dispatcher(bot, storage=storage)
 
 # инициализируем базу данных
 DATABASE = 'orders.db'
+
+# Определяем кнопки
+price_btn = KeyboardButton('Узнать стоимость')
+contact_btn = KeyboardButton('Связаться с менеджером')
+order_btn = KeyboardButton('Сделать заказ')
+# menu_btn = KeyboardButton('Вернуться в меню')
+
+# Создаем объект ReplyKeyboardMarkup и добавляем кнопки
+markup = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            price_btn,
+            order_btn
+        ],
+        [
+            contact_btn
+        ]
+    ],
+    resize_keyboard=True
+)  # menu_btn
 
 
 def init_db():
@@ -31,10 +54,8 @@ def init_db():
 def save_order(price, article, photo_id):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-
     cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?)',
                    (price, article, photo_id))
-
     conn.commit()
     conn.close()
 
@@ -50,11 +71,41 @@ class OrderForm(StatesGroup):
 @dp.message_handler(commands=['start'])
 async def process_start_command(message: types.Message):
     await message.answer('Привет! Это тестовый бот для заказа товаров. '
-                         'Напишите /order, чтобы начать оформление заказа.')
+                         'Нажмите кнопку "Сделать заказ", чтобы начать оформление заказа.', reply_markup=markup)
 
 
-# создаем обработчик команды /order
-@dp.message_handler(commands=['order'])
+# # Создаем обработчик для кнопки "Вернуться в меню"
+# @dp.message_handler(Text(equals='Вернуться в меню'))
+# async def return_to_menu(message: types.Message):
+#     # Отправляем сообщение со всеми доступными кнопками
+#     await message.answer(
+#         "Выберите действие:",
+#         reply_markup=ReplyKeyboardMarkup(
+#             keyboard=[
+#                 [
+#                     KeyboardButton(text="Узнать стоимость"),
+#                     KeyboardButton(text="Связаться с менеджером"),
+#                 ],
+#                 [
+#                     KeyboardButton(text="Сделать заказ"),
+#                 ],
+#             ],
+#             resize_keyboard=True,
+#         ),
+#     )
+
+
+# Создаем обработчик для кнопки "Связаться с менеджером"
+@dp.message_handler(Text(equals='Связаться с менеджером'))
+async def ask_price(message: types.Message):
+    await message.answer(
+        f"Если у вас возникли какие-нибудь вопросы, то можете задать их нашему менеджеру {manager_link}.",
+        parse_mode=ParseMode.HTML
+    )
+
+
+# создаем обработчик кнопки заказа
+@dp.message_handler(Text(equals='Сделать заказ'))
 async def process_order_command(message: types.Message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
     markup.add(types.KeyboardButton('Отмена'))
@@ -86,7 +137,7 @@ async def process_order_step1_invalid(message: types.Message):
 
 
 @dp.message_handler(lambda message: message.text.isdigit(), state=OrderForm.price)
-async def process_order_step1(message: types.Message, state: StatesGroup):  # state: FSMContext
+async def process_order_step1(message: types.Message, state: StatesGroup):
     async with state.proxy() as data:
         data['price'] = message.text
 
@@ -100,7 +151,7 @@ async def process_order_step1(message: types.Message, state: StatesGroup):  # st
 
 # создаем обработчик состояния "артикул"
 @dp.message_handler(state=OrderForm.article)
-async def process_order_step2(message: types.Message, state: StatesGroup):  # state: FSMContext
+async def process_order_step2(message: types.Message, state: StatesGroup):
     async with state.proxy() as data:
         data['article'] = message.text
 
@@ -136,7 +187,7 @@ async def process_order_step3(message: types.Message, state: StatesGroup):  # st
 
 # создаем обработчик фото
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=OrderForm.payment)
-async def process_order_step4(message: types.Message, state: StatesGroup): # state: FSMContext
+async def process_order_step4(message: types.Message, state: StatesGroup):  # state: FSMContext
     # сохраняем фото в файл
     photo_id = message.photo[-1].file_id
     file_path = await bot.get_file(photo_id)
@@ -151,7 +202,31 @@ async def process_order_step4(message: types.Message, state: StatesGroup): # sta
     # завершаем процесс заказа
     await state.finish()
 
-    await bot.send_message(message.chat.id, 'Спасибо за оплату. Ваш заказ принят и будет обработан в ближайшее время.')
+    await message.answer('Спасибо за оплату. Ваш заказ принят и будет обработан в ближайшее время.', reply_markup=markup)
+
+
+# Создаем обработчик для кнопки "Узнать стоимость"
+@dp.message_handler(Text(equals='Узнать стоимость'))
+async def ask_price(message: types.Message):
+    # Сохраняем состояние в FSM
+    # await OrderForm.price.set()
+    await message.answer("Введите стоимость товара:")
+
+
+# создаем обработчик состояния "цена"
+@dp.message_handler(lambda message: not message.text.isdigit())
+async def process_order_step_invalid(message: types.Message):
+    await message.answer('Цена должна быть числом. Попробуйте еще раз.')
+
+
+@dp.message_handler(lambda message: message.text.isdigit())
+async def process_order_step(message: types.Message):
+    price = int(message.text)
+    # Умножаем цену на 10
+    price *= 12.7
+
+    # Отправляем ответ и сбрасываем состояние FSM
+    await message.answer(f"Стоимость товара: {price}")
 
 
 if __name__ == '__main__':
