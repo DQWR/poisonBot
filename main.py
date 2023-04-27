@@ -18,7 +18,7 @@ async def calculate(message: types.Message):
     number = int(message.text)
     result = number * 11.9 + 1990
     await message.reply(f"Итоговая стоимость {result}.")
-
+# DICK
 
 if __name__ == '__main__':
     executor.start_polling(dp)
