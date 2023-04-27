@@ -32,7 +32,7 @@ def save_order(price, article, photo_id):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
-    cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?, ?)',
+    cursor.execute('INSERT INTO orders (price, article, photo_id) VALUES (?, ?, ?)',
                    (price, article, photo_id))
 
     conn.commit()
