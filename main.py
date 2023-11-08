@@ -14,7 +14,7 @@ manager_username = "@123"
 manager_link = f'<a href="tg://user?id={manager_username}">{manager_username}</a>'
 
 # инициализируем бота и хранилище состояний
-bot = Bot("6178523486:AAHYatLOHjaLa2UMjyZ2gXGF_lwsHP-VKLQ", parse_mode=ParseMode.HTML)
+bot = Bot("TOKEN", parse_mode=ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
